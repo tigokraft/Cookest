@@ -24,11 +24,11 @@ use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::Config;
-use crate::handlers::{configure_auth, configure_recipes, configure_ingredients, configure_user};
+use crate::handlers::{configure_auth, configure_recipes, configure_ingredients, configure_user, configure_chat};
 use crate::middleware::{JwtAuth, RateLimit};
 use crate::services::{
     AuthService, TokenService, RecipeService, IngredientService,
-    MealPlanService, InventoryService, ProfileService, InteractionService,
+    MealPlanService, InventoryService, ProfileService, InteractionService, ChatService,
 };
 
 #[actix_web::main]
@@ -408,6 +408,7 @@ async fn main() -> std::io::Result<()> {
     let inventory_service = Arc::new(InventoryService::new(db.clone()));
     let profile_service = Arc::new(ProfileService::new(db.clone()));
     let interaction_service = Arc::new(InteractionService::new(db.clone()));
+    let chat_service = Arc::new(ChatService::new(db.clone()));
 
     tracing::info!("Server starting on {}", bind_address);
 
@@ -442,6 +443,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(inventory_service.clone()))
             .app_data(web::Data::new(profile_service.clone()))
             .app_data(web::Data::new(interaction_service.clone()))
+            .app_data(web::Data::new(chat_service.clone()))
             // ── Public routes (no JWT required) ──────────────────────────────
             .configure(configure_auth)        // /api/auth/*
             .configure(configure_recipes)     // /api/recipes/* (read-only browsing)
@@ -450,7 +452,8 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("")
                     .wrap(JwtAuth::new(token_service.clone()))
-                    .configure(configure_user) // /api/me/*, /api/inventory/*, /api/recipes/:id/rate, /api/meal-plans/*
+                    .configure(configure_user)  // /api/me/*, /api/inventory/*, /api/recipes/:id/rate, /api/meal-plans/*
+                    .configure(configure_chat)  // /api/chat/*
             )
             // Health check (public, no auth)
             .route("/health", web::get().to(|| async {

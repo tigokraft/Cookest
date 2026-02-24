@@ -7,6 +7,7 @@ pub mod meal_plan;
 pub mod inventory;
 pub mod profile;
 pub mod interaction;
+pub mod chat;
 
 pub use auth::AuthService;
 pub use token::TokenService;
@@ -17,3 +18,4 @@ pub use meal_plan::MealPlanService;
 pub use inventory::InventoryService;
 pub use profile::ProfileService;
 pub use interaction::InteractionService;
+pub use chat::ChatService;
