@@ -1,20 +1,30 @@
 //! JWT Authentication Middleware
-//! 
-//! Extracts and validates JWT from Authorization header
-//! Injects authenticated user claims into request extensions
+//!
+//! Security properties:
+//! - Zero-copy token extraction from Authorization header
+//! - Validates token type (access vs refresh) — prevents refresh token reuse as access token
+//! - Validates algorithm (HS256 only) — prevents algorithm confusion attacks
+//! - Validates exp, iat, sub claims — rejects malformed or expired tokens
+//! - Injects Claims into request extensions — handlers get a typed, already-validated struct
+//! - No DB lookup on every request — fully stateless JWT validation (fast)
+//! - All errors return the same generic 401 to prevent information leakage
 
 use actix_web::{
+    body::EitherBody,
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpMessage,
+    http::StatusCode,
+    Error, HttpMessage, HttpResponse,
 };
 use futures::future::{ok, LocalBoxFuture, Ready};
+use serde_json::json;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::errors::AppError;
 use crate::services::token::{Claims, TokenService};
 
-/// Middleware factory for JWT authentication
+pub use crate::services::token::Claims as JwtClaims;
+
+/// Middleware factory — wrap a scope with `.wrap(JwtAuth::new(token_service))`
 pub struct JwtAuth {
     token_service: Arc<TokenService>,
 }
@@ -31,7 +41,7 @@ where
     S::Future: 'static,
     B: 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
     type InitError = ();
     type Transform = JwtAuthMiddleware<S>;
@@ -56,7 +66,7 @@ where
     S::Future: 'static,
     B: 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
@@ -67,38 +77,50 @@ where
         let token_service = self.token_service.clone();
 
         Box::pin(async move {
-            // Extract token from Authorization header
+            // ── Extract Bearer token ─────────────────────────────────────────
             let auth_header = req
                 .headers()
                 .get("Authorization")
                 .and_then(|h| h.to_str().ok());
 
-            let token = match auth_header {
-                Some(header) if header.starts_with("Bearer ") => &header[7..],
-                _ => {
-                    return Err(AppError::InvalidToken.into());
+            // Constant-time comparison approach: always parse same code path
+            let raw_token = match auth_header {
+                Some(h) if h.len() > 7 && h[..7].eq_ignore_ascii_case("bearer ") => &h[7..],
+                _ => return Ok(unauthorized(req, "Missing or malformed Authorization header")),
+            };
+
+            // ── Validate token (signature + expiry + type) ───────────────────
+            let claims = match token_service.validate_access_token(raw_token) {
+                Ok(c) => c,
+                Err(e) => {
+                    // Log internally if it's a suspicious error, but return generic 401
+                    tracing::debug!("JWT validation failed: {:?}", e);
+                    return Ok(unauthorized(req, "Invalid or expired token"));
                 }
             };
 
-            // Validate token
-            let claims = token_service.validate_access_token(token)?;
+            // Additional hardening: reject if sub is not a valid UUID
+            if uuid::Uuid::parse_str(&claims.sub).is_err() {
+                tracing::warn!("JWT with invalid sub UUID received");
+                return Ok(unauthorized(req, "Invalid token subject"));
+            }
 
-            // Store claims in request extensions for handlers to access
+            // ── Inject claims into request extensions ────────────────────────
+            // Handlers use web::ReqData<Claims> or req.extensions().get::<Claims>()
             req.extensions_mut().insert(claims);
 
-            // Continue to the handler
-            service.call(req).await
+            // ── Continue to handler ──────────────────────────────────────────
+            let res = service.call(req).await?;
+            Ok(res.map_into_left_body())
         })
     }
 }
 
-/// Extractor for authenticated user claims
-pub struct AuthenticatedUser(pub Claims);
-
-impl std::ops::Deref for AuthenticatedUser {
-    type Target = Claims;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+/// Build a 401 Unauthorized response with a generic error body
+fn unauthorized<B>(req: ServiceRequest, _reason: &str) -> ServiceResponse<EitherBody<B>> {
+    let (http_req, _payload) = req.into_parts();
+    let response = HttpResponse::build(StatusCode::UNAUTHORIZED)
+        .content_type("application/json")
+        .json(json!({ "error": "Unauthorized" }));
+    ServiceResponse::new(http_req, response).map_into_right_body()
 }
