@@ -1,7 +1,7 @@
 pub mod user;
 pub mod recipe;
 pub mod ingredient;
-
-pub use user::Entity as User;
-pub use user::Model as UserModel;
-pub use user::UserResponse;
+pub mod inventory;
+pub mod profile;
+pub mod interaction;
+pub mod meal_plan;

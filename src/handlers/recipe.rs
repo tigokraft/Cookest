@@ -10,7 +10,7 @@ use actix_web::{web, HttpResponse};
 use std::sync::Arc;
 
 use crate::errors::AppError;
-use crate::models::recipe::{RecipeQuery, ScaleRequest};
+use crate::models::recipe::RecipeQuery;
 use crate::services::RecipeService;
 
 /// GET /api/recipes

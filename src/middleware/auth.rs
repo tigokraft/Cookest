@@ -20,9 +20,7 @@ use serde_json::json;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::services::token::{Claims, TokenService};
-
-pub use crate::services::token::Claims as JwtClaims;
+use crate::services::token::TokenService;
 
 /// Middleware factory — wrap a scope with `.wrap(JwtAuth::new(token_service))`
 pub struct JwtAuth {

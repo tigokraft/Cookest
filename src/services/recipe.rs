@@ -1,8 +1,8 @@
 //! Recipe service — queries recipes with filtering, pagination, and full detail loads
 
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    PaginatorTrait, QueryTrait, Condition,
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    PaginatorTrait, Condition,
 };
 
 use crate::entity::{
