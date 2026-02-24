@@ -7,7 +7,7 @@
 //!   nutrition_balance   × 12  — fill the week's nutritional gaps
 //!   variety_bonus       ×  8  — penalise recently cooked recipes
 
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{Datelike, Duration, NaiveDate, Utc};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     ActiveModelTrait, Set,
