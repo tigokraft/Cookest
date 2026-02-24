@@ -19,6 +19,8 @@ pub enum AppError {
     TokenExpired,
     /// User already exists - generic message to prevent email enumeration
     UserAlreadyExists,
+    /// Resource not found
+    NotFound(String),
     /// Internal server error
     Internal(String),
     /// Rate limit exceeded
@@ -41,6 +43,7 @@ impl fmt::Display for AppError {
             AppError::InvalidToken => write!(f, "Invalid token"),
             AppError::TokenExpired => write!(f, "Token expired"),
             AppError::UserAlreadyExists => write!(f, "Registration failed"),
+            AppError::NotFound(r) => write!(f, "{} not found", r),
             AppError::Internal(_) => write!(f, "Internal server error"),
             AppError::RateLimitExceeded => write!(f, "Too many requests"),
         }
@@ -117,6 +120,13 @@ impl ResponseError for AppError {
                     },
                 )
             }
+            AppError::NotFound(resource) => (
+                actix_web::http::StatusCode::NOT_FOUND,
+                ErrorResponse {
+                    error: format!("{} not found", resource),
+                    details: None,
+                },
+            ),
             AppError::RateLimitExceeded => (
                 actix_web::http::StatusCode::TOO_MANY_REQUESTS,
                 ErrorResponse {
