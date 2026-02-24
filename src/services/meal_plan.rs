@@ -193,9 +193,9 @@ impl MealPlanService {
                 let scale = household_size as f64 / recipe.servings.max(1) as f64;
                 let cal = f64::try_from(n.calories.unwrap_or_default()).unwrap_or(0.0) * scale;
                 let pro = f64::try_from(n.protein_g.unwrap_or_default()).unwrap_or(0.0) * scale;
-                let carb = f64::try_from(n.carbs_g.unwrap_or_default()).unwrap_or(0.0) * scale;
-                let fat = f64::try_from(n.fat_g.unwrap_or_default()).unwrap_or(0.0) * scale;
-                let fib = f64::try_from(n.fiber_g.unwrap_or_default()).unwrap_or(0.0) * scale;
+                let _carb = f64::try_from(n.carbs_g.unwrap_or_default()).unwrap_or(0.0) * scale;
+                let _fat = f64::try_from(n.fat_g.unwrap_or_default()).unwrap_or(0.0) * scale;
+                let _fib = f64::try_from(n.fiber_g.unwrap_or_default()).unwrap_or(0.0) * scale;
 
                 // Remaining weekly targets (7 meals selected, 21 total slots)
                 let cal_gap = (DAILY_CALORIES * 7.0 - weekly_calories).max(0.0);

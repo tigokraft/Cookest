@@ -91,7 +91,7 @@ pub async fn refresh(
 /// 
 /// Invalidates refresh token
 pub async fn logout(
-    auth_service: web::Data<Arc<AuthService>>,
+    _auth_service: web::Data<Arc<AuthService>>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     // Extract user_id from refresh token if present

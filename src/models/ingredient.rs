@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use validator::Validate;
+
 
 /// Query params for ingredient search (autocomplete)
 #[derive(Debug, Deserialize)]

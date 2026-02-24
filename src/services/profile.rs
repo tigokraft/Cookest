@@ -2,7 +2,6 @@
 
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
-use sea_orm::prelude::Json;
 use serde_json::json;
 use uuid::Uuid;
 
