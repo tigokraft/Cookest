@@ -1,11 +1,12 @@
-//! Secure Authentication API with Actix-web
-//! 
+//! Cookest API — Rust + Actix-Web + SeaORM + PostgreSQL
+//!
 //! Features:
 //! - Argon2id password hashing
 //! - JWT with refresh token rotation
 //! - Rate limiting
 //! - HttpOnly cookies
 //! - Security headers
+//! - Full recipe, ingredient, nutrition, inventory, meal plan, and AI chat database
 
 mod config;
 mod db;
@@ -37,7 +38,7 @@ async fn main() -> std::io::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting Authentication API");
+    tracing::info!("Starting Cookest API");
 
     // Load configuration
     let config = Config::from_env().expect("Failed to load configuration");
@@ -50,30 +51,334 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to connect to database");
 
-    // Run migrations
+    // Run all migrations in dependency order
     tracing::info!("Running database migrations...");
-    // Note: In production, you'd use sea-orm-cli for migrations
-    // For now, we'll create the table directly
     use sea_orm::{ConnectionTrait, Statement};
-    db.execute(Statement::from_string(
-        sea_orm::DatabaseBackend::Postgres,
+
+    let migrations: &[&str] = &[
+        // ── Extensions ──────────────────────────────────────────────────────────
+        r#"CREATE EXTENSION IF NOT EXISTS "uuid-ossp";"#,
+        r#"CREATE EXTENSION IF NOT EXISTS pg_trgm;"#,
+
+        // ── Users (extended with profile fields) ────────────────────────────────
         r#"
         CREATE TABLE IF NOT EXISTS users (
-            id UUID PRIMARY KEY,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            refresh_token_hash TEXT,
-            failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-            locked_until TIMESTAMPTZ,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            email                   VARCHAR(255) UNIQUE NOT NULL,
+            name                    VARCHAR(255),
+            password_hash           TEXT NOT NULL,
+            refresh_token_hash      TEXT,
+            household_size          INTEGER NOT NULL DEFAULT 1,
+            dietary_restrictions    TEXT[] DEFAULT '{}',
+            allergies               TEXT[] DEFAULT '{}',
+            avatar_url              TEXT,
+            is_email_verified       BOOLEAN NOT NULL DEFAULT FALSE,
+            two_factor_enabled      BOOLEAN NOT NULL DEFAULT FALSE,
+            totp_secret             TEXT,
+            failed_login_attempts   INTEGER NOT NULL DEFAULT 0,
+            locked_until            TIMESTAMPTZ,
+            created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        "#.to_string(),
-    ))
-    .await
-    .expect("Failed to run migrations");
-    tracing::info!("Migrations complete");
+        "#,
+
+        // ── Ingredients ──────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS ingredients (
+            id          BIGSERIAL PRIMARY KEY,
+            name        TEXT UNIQUE NOT NULL,
+            category    TEXT,
+            fdc_id      INTEGER,
+            off_id      TEXT,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_ingredients_name_trgm
+            ON ingredients USING GIN (name gin_trgm_ops);
+        CREATE INDEX IF NOT EXISTS idx_ingredients_category
+            ON ingredients(category);
+        CREATE INDEX IF NOT EXISTS idx_ingredients_fdc_id
+            ON ingredients(fdc_id) WHERE fdc_id IS NOT NULL;
+        "#,
+
+        // ── Ingredient Nutrients ─────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS ingredient_nutrients (
+            id                  BIGSERIAL PRIMARY KEY,
+            ingredient_id       BIGINT NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+            calories            NUMERIC(10,4),
+            protein_g           NUMERIC(10,4),
+            carbs_g             NUMERIC(10,4),
+            fat_g               NUMERIC(10,4),
+            fiber_g             NUMERIC(10,4),
+            sugar_g             NUMERIC(10,4),
+            sodium_mg           NUMERIC(10,4),
+            saturated_fat_g     NUMERIC(10,4),
+            cholesterol_mg      NUMERIC(10,4),
+            micronutrients      JSONB,
+            UNIQUE(ingredient_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ingredient_nutrients_ingredient
+            ON ingredient_nutrients(ingredient_id);
+        CREATE INDEX IF NOT EXISTS idx_ingredient_nutrients_micros
+            ON ingredient_nutrients USING GIN (micronutrients);
+        "#,
+
+        // ── Portion Sizes ────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS portion_sizes (
+            id              BIGSERIAL PRIMARY KEY,
+            ingredient_id   BIGINT NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+            description     TEXT NOT NULL,
+            weight_grams    NUMERIC(10,3) NOT NULL,
+            unit            TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_portion_sizes_ingredient
+            ON portion_sizes(ingredient_id);
+        "#,
+
+        // ── Recipes ──────────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS recipes (
+            id              BIGSERIAL PRIMARY KEY,
+            name            TEXT NOT NULL,
+            slug            TEXT UNIQUE NOT NULL,
+            description     TEXT,
+            cuisine         TEXT,
+            category        TEXT,
+            difficulty      TEXT,
+            servings        INTEGER NOT NULL DEFAULT 2,
+            prep_time_min   INTEGER,
+            cook_time_min   INTEGER,
+            total_time_min  INTEGER,
+            is_vegetarian   BOOLEAN NOT NULL DEFAULT FALSE,
+            is_vegan        BOOLEAN NOT NULL DEFAULT FALSE,
+            is_gluten_free  BOOLEAN NOT NULL DEFAULT FALSE,
+            is_dairy_free   BOOLEAN NOT NULL DEFAULT FALSE,
+            is_nut_free     BOOLEAN NOT NULL DEFAULT FALSE,
+            source_url      TEXT,
+            average_rating  NUMERIC(3,2),
+            rating_count    INTEGER NOT NULL DEFAULT 0,
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_recipes_name_trgm
+            ON recipes USING GIN (name gin_trgm_ops);
+        CREATE INDEX IF NOT EXISTS idx_recipes_cuisine    ON recipes(cuisine);
+        CREATE INDEX IF NOT EXISTS idx_recipes_category   ON recipes(category);
+        CREATE INDEX IF NOT EXISTS idx_recipes_difficulty ON recipes(difficulty);
+        CREATE INDEX IF NOT EXISTS idx_recipes_dietary
+            ON recipes(is_vegetarian, is_vegan, is_gluten_free, is_dairy_free, is_nut_free);
+        "#,
+
+        // ── Recipe Ingredients ───────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS recipe_ingredients (
+            id              BIGSERIAL PRIMARY KEY,
+            recipe_id       BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            ingredient_id   BIGINT NOT NULL REFERENCES ingredients(id) ON DELETE RESTRICT,
+            quantity        NUMERIC(10,3),
+            unit            TEXT,
+            quantity_grams  NUMERIC(10,3),
+            notes           TEXT,
+            display_order   INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe
+            ON recipe_ingredients(recipe_id);
+        CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_ingredient
+            ON recipe_ingredients(ingredient_id);
+        "#,
+
+        // ── Recipe Steps ─────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS recipe_steps (
+            id              BIGSERIAL PRIMARY KEY,
+            recipe_id       BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            step_number     INTEGER NOT NULL,
+            instruction     TEXT NOT NULL,
+            duration_min    INTEGER,
+            image_url       TEXT,
+            tip             TEXT,
+            UNIQUE(recipe_id, step_number)
+        );
+        CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe
+            ON recipe_steps(recipe_id);
+        "#,
+
+        // ── Recipe Images ────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS recipe_images (
+            id          BIGSERIAL PRIMARY KEY,
+            recipe_id   BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            url         TEXT NOT NULL,
+            image_type  TEXT,
+            is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
+            width       INTEGER,
+            height      INTEGER,
+            source      TEXT,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_recipe_images_recipe
+            ON recipe_images(recipe_id);
+        CREATE INDEX IF NOT EXISTS idx_recipe_images_primary
+            ON recipe_images(recipe_id, is_primary) WHERE is_primary = TRUE;
+        "#,
+
+        // ── Recipe Nutrition (precomputed) ───────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS recipe_nutrition (
+            id                  BIGSERIAL PRIMARY KEY,
+            recipe_id           BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            per_serving         BOOLEAN NOT NULL DEFAULT TRUE,
+            calories            NUMERIC(10,4),
+            protein_g           NUMERIC(10,4),
+            carbs_g             NUMERIC(10,4),
+            fat_g               NUMERIC(10,4),
+            fiber_g             NUMERIC(10,4),
+            sugar_g             NUMERIC(10,4),
+            sodium_mg           NUMERIC(10,4),
+            saturated_fat_g     NUMERIC(10,4),
+            cholesterol_mg      NUMERIC(10,4),
+            micronutrients      JSONB,
+            calculated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(recipe_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_recipe_nutrition_recipe
+            ON recipe_nutrition(recipe_id);
+        "#,
+
+        // ── User Favorites ───────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS user_favorites (
+            id          BIGSERIAL PRIMARY KEY,
+            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            recipe_id   BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            saved_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(user_id, recipe_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_favorites_user   ON user_favorites(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_favorites_recipe ON user_favorites(recipe_id);
+        "#,
+
+        // ── Recipe Ratings ───────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS recipe_ratings (
+            id          BIGSERIAL PRIMARY KEY,
+            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            recipe_id   BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            rating      SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+            comment     TEXT,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(user_id, recipe_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_recipe_ratings_recipe ON recipe_ratings(recipe_id);
+        CREATE INDEX IF NOT EXISTS idx_recipe_ratings_user   ON recipe_ratings(user_id);
+        "#,
+
+        // ── Cooking History ──────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS cooking_history (
+            id                  BIGSERIAL PRIMARY KEY,
+            user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            recipe_id           BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+            servings_made       INTEGER NOT NULL DEFAULT 1,
+            inventory_deducted  BOOLEAN NOT NULL DEFAULT FALSE,
+            cooked_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_cooking_history_user   ON cooking_history(user_id);
+        CREATE INDEX IF NOT EXISTS idx_cooking_history_recipe ON cooking_history(recipe_id);
+        CREATE INDEX IF NOT EXISTS idx_cooking_history_date   ON cooking_history(user_id, cooked_at DESC);
+        "#,
+
+        // ── Inventory Items ──────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS inventory_items (
+            id                  BIGSERIAL PRIMARY KEY,
+            user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            ingredient_id       BIGINT NOT NULL REFERENCES ingredients(id) ON DELETE RESTRICT,
+            custom_name         TEXT,
+            quantity            NUMERIC(10,3) NOT NULL,
+            unit                TEXT NOT NULL,
+            expiry_date         DATE,
+            storage_location    TEXT,
+            added_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_inventory_user        ON inventory_items(user_id);
+        CREATE INDEX IF NOT EXISTS idx_inventory_ingredient  ON inventory_items(ingredient_id);
+        CREATE INDEX IF NOT EXISTS idx_inventory_expiry
+            ON inventory_items(user_id, expiry_date) WHERE expiry_date IS NOT NULL;
+        "#,
+
+        // ── Meal Plans ───────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS meal_plans (
+            id                  BIGSERIAL PRIMARY KEY,
+            user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            week_start          DATE NOT NULL,
+            is_ai_generated     BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(user_id, week_start)
+        );
+        CREATE INDEX IF NOT EXISTS idx_meal_plans_user ON meal_plans(user_id);
+        "#,
+
+        // ── Meal Plan Slots ──────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS meal_plan_slots (
+            id                  BIGSERIAL PRIMARY KEY,
+            meal_plan_id        BIGINT NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE,
+            recipe_id           BIGINT NOT NULL REFERENCES recipes(id) ON DELETE RESTRICT,
+            day_of_week         SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+            meal_type           TEXT NOT NULL,
+            servings_override   INTEGER,
+            is_completed        BOOLEAN NOT NULL DEFAULT FALSE,
+            UNIQUE(meal_plan_id, day_of_week, meal_type)
+        );
+        CREATE INDEX IF NOT EXISTS idx_meal_plan_slots_plan   ON meal_plan_slots(meal_plan_id);
+        CREATE INDEX IF NOT EXISTS idx_meal_plan_slots_recipe ON meal_plan_slots(recipe_id);
+        "#,
+
+        // ── Chat Sessions ────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            id                  BIGSERIAL PRIMARY KEY,
+            user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            current_recipe_id   BIGINT REFERENCES recipes(id) ON DELETE SET NULL,
+            title               TEXT,
+            created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id);
+        "#,
+
+        // ── Chat Messages ────────────────────────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id          BIGSERIAL PRIMARY KEY,
+            session_id  BIGINT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+            role        TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+            content     TEXT NOT NULL,
+            tokens_used INTEGER,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+            ON chat_messages(session_id, created_at ASC);
+        "#,
+    ];
+
+    for sql in migrations {
+        db.execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            sql.to_string(),
+        ))
+        .await
+        .expect("Failed to run migration");
+    }
+
+    tracing::info!("All {} migrations complete", migrations.len());
 
     // Initialize services
     let token_service = Arc::new(TokenService::new(&config));
@@ -95,8 +400,8 @@ async fn main() -> std::io::Result<()> {
             .max_age(3600);
 
         App::new()
-            // Security: Request body size limit (1 MB)
-            .app_data(web::JsonConfig::default().limit(1024 * 1024))
+            // Security: Request body size limit (10 MB - larger for recipe images)
+            .app_data(web::JsonConfig::default().limit(10 * 1024 * 1024))
             // Logging
             .wrap(Logger::default())
             // CORS
@@ -111,7 +416,8 @@ async fn main() -> std::io::Result<()> {
             // Health check
             .route("/health", web::get().to(|| async {
                 actix_web::HttpResponse::Ok().json(serde_json::json!({
-                    "status": "healthy"
+                    "status": "healthy",
+                    "service": "cookest-api"
                 }))
             }))
     })
