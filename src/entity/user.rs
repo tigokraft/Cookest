@@ -7,7 +7,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "users")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -29,13 +29,13 @@ pub struct Model {
     /// Number of people in the household — used for auto-scaling recipe portions
     pub household_size: i32,
 
-    /// Dietary restrictions: e.g. ["vegetarian", "gluten_free"]
-    #[sea_orm(column_type = "Array(RcOrArc(Box::new(ColumnType::Text)))", nullable)]
-    pub dietary_restrictions: Option<Vec<String>>,
+    /// Dietary restrictions stored as JSON array: e.g. ["vegetarian", "gluten_free"]
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub dietary_restrictions: Option<Json>,
 
-    /// Food allergies: e.g. ["nuts", "shellfish"]
-    #[sea_orm(column_type = "Array(RcOrArc(Box::new(ColumnType::Text)))", nullable)]
-    pub allergies: Option<Vec<String>>,
+    /// Food allergies stored as JSON array: e.g. ["nuts", "shellfish"]
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub allergies: Option<Json>,
 
     /// URL to profile avatar stored in S3
     #[sea_orm(column_type = "Text", nullable)]
@@ -127,8 +127,8 @@ pub struct UserResponse {
     pub email: String,
     pub name: Option<String>,
     pub household_size: i32,
-    pub dietary_restrictions: Option<Vec<String>>,
-    pub allergies: Option<Vec<String>>,
+    pub dietary_restrictions: Option<Json>,
+    pub allergies: Option<Json>,
     pub avatar_url: Option<String>,
     pub is_email_verified: bool,
     pub two_factor_enabled: bool,
