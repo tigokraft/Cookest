@@ -24,9 +24,12 @@ use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::Config;
-use crate::handlers::{configure_auth, configure_recipes, configure_ingredients};
-use crate::middleware::RateLimit;
-use crate::services::{AuthService, TokenService, RecipeService, IngredientService};
+use crate::handlers::{configure_auth, configure_recipes, configure_ingredients, configure_user};
+use crate::middleware::{JwtAuth, RateLimit};
+use crate::services::{
+    AuthService, TokenService, RecipeService, IngredientService,
+    MealPlanService, InventoryService, ProfileService, InteractionService,
+};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -401,6 +404,10 @@ async fn main() -> std::io::Result<()> {
     let auth_service = Arc::new(AuthService::new(db.clone(), TokenService::new(&config)));
     let recipe_service = Arc::new(RecipeService::new(db.clone()));
     let ingredient_service = Arc::new(IngredientService::new(db.clone()));
+    let meal_plan_service = Arc::new(MealPlanService::new(db.clone()));
+    let inventory_service = Arc::new(InventoryService::new(db.clone()));
+    let profile_service = Arc::new(ProfileService::new(db.clone()));
+    let interaction_service = Arc::new(InteractionService::new(db.clone()));
 
     tracing::info!("Server starting on {}", bind_address);
 
@@ -431,11 +438,21 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(token_service.clone()))
             .app_data(web::Data::new(recipe_service.clone()))
             .app_data(web::Data::new(ingredient_service.clone()))
-            // Routes
-            .configure(configure_auth)
-            .configure(configure_recipes)
-            .configure(configure_ingredients)
-            // Health check
+            .app_data(web::Data::new(meal_plan_service.clone()))
+            .app_data(web::Data::new(inventory_service.clone()))
+            .app_data(web::Data::new(profile_service.clone()))
+            .app_data(web::Data::new(interaction_service.clone()))
+            // ── Public routes (no JWT required) ──────────────────────────────
+            .configure(configure_auth)        // /api/auth/*
+            .configure(configure_recipes)     // /api/recipes/* (read-only browsing)
+            .configure(configure_ingredients) // /api/ingredients/* (search)
+            // ── Protected routes (JWT required) ──────────────────────────────
+            .service(
+                web::scope("")
+                    .wrap(JwtAuth::new(token_service.clone()))
+                    .configure(configure_user) // /api/me/*, /api/inventory/*, /api/recipes/:id/rate, /api/meal-plans/*
+            )
+            // Health check (public, no auth)
             .route("/health", web::get().to(|| async {
                 actix_web::HttpResponse::Ok().json(serde_json::json!({
                     "status": "healthy",
