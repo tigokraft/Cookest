@@ -4,6 +4,9 @@ pub mod recipe;
 pub mod ingredient;
 pub mod preference;
 pub mod meal_plan;
+pub mod inventory;
+pub mod profile;
+pub mod interaction;
 
 pub use auth::AuthService;
 pub use token::TokenService;
@@ -11,3 +14,6 @@ pub use recipe::RecipeService;
 pub use ingredient::IngredientService;
 pub use preference::PreferenceService;
 pub use meal_plan::MealPlanService;
+pub use inventory::InventoryService;
+pub use profile::ProfileService;
+pub use interaction::InteractionService;
