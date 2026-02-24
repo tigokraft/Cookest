@@ -367,6 +367,22 @@ async fn main() -> std::io::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_chat_messages_session
             ON chat_messages(session_id, created_at ASC);
         "#,
+
+        // ── User Preferences (ML vector) ─────────────────────────────────────
+        r#"
+        CREATE TABLE IF NOT EXISTS user_preferences (
+            user_id             UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            cuisine_weights     JSONB NOT NULL DEFAULT '{}',
+            ingredient_weights  JSONB NOT NULL DEFAULT '{}',
+            macro_bias          JSONB NOT NULL DEFAULT '{"protein":0.0,"carbs":0.0,"fat":0.0}',
+            difficulty_weights  JSONB NOT NULL DEFAULT '{"easy":0.0,"medium":0.0,"hard":0.0}',
+            preferred_time_min  INTEGER NOT NULL DEFAULT 30,
+            interaction_count   INTEGER NOT NULL DEFAULT 0,
+            updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_preferences_updated
+            ON user_preferences(updated_at);
+        "#,
     ];
 
     for sql in migrations {
