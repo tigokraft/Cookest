@@ -9,7 +9,7 @@
 
 use chrono::{Duration, NaiveDate, Utc};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     ActiveModelTrait, Set,
 };
 use std::collections::HashMap;
@@ -140,11 +140,8 @@ impl MealPlanService {
         let mut scored: Vec<RecipeScore> = Vec::new();
 
         // Track weekly nutrition totals (updated as we select recipes)
-        let mut weekly_calories = 0.0_f64;
-        let mut weekly_protein = 0.0_f64;
-        let mut weekly_carbs = 0.0_f64;
-        let mut weekly_fat = 0.0_f64;
-        let mut weekly_fiber = 0.0_f64;
+        let weekly_calories = 0.0_f64;
+        let weekly_protein = 0.0_f64;
 
         for recipe in &all_recipes {
             // Skip recently cooked (last 7 days — full penalty)
