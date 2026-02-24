@@ -27,3 +27,6 @@ pub mod meal_plan_slot;
 // AI Chat
 pub mod chat_session;
 pub mod chat_message;
+
+// ML Preferences
+pub mod user_preference;
