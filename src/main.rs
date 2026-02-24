@@ -24,9 +24,9 @@ use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::Config;
-use crate::handlers::configure_auth;
+use crate::handlers::{configure_auth, configure_recipes, configure_ingredients};
 use crate::middleware::RateLimit;
-use crate::services::{AuthService, TokenService};
+use crate::services::{AuthService, TokenService, RecipeService, IngredientService};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -382,7 +382,9 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize services
     let token_service = Arc::new(TokenService::new(&config));
-    let auth_service = Arc::new(AuthService::new(db, TokenService::new(&config)));
+    let auth_service = Arc::new(AuthService::new(db.clone(), TokenService::new(&config)));
+    let recipe_service = Arc::new(RecipeService::new(db.clone()));
+    let ingredient_service = Arc::new(IngredientService::new(db.clone()));
 
     tracing::info!("Server starting on {}", bind_address);
 
@@ -411,8 +413,12 @@ async fn main() -> std::io::Result<()> {
             // Services
             .app_data(web::Data::new(auth_service.clone()))
             .app_data(web::Data::new(token_service.clone()))
+            .app_data(web::Data::new(recipe_service.clone()))
+            .app_data(web::Data::new(ingredient_service.clone()))
             // Routes
             .configure(configure_auth)
+            .configure(configure_recipes)
+            .configure(configure_ingredients)
             // Health check
             .route("/health", web::get().to(|| async {
                 actix_web::HttpResponse::Ok().json(serde_json::json!({
