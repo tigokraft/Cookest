@@ -322,4 +322,186 @@ impl MealPlanService {
             _ => true,
         }
     }
+
+    /// Get the current week's meal plan with full recipe details per slot
+    pub async fn get_current_plan(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<serde_json::Value>, AppError> {
+        let today = Utc::now().date_naive();
+        // Week starts on Monday
+        let days_since_monday = today.weekday().num_days_from_monday() as i64;
+        let week_start = today - chrono::Duration::days(days_since_monday);
+
+        let plan = meal_plan::Entity::find()
+            .filter(meal_plan::Column::UserId.eq(user_id))
+            .filter(meal_plan::Column::WeekStart.eq(week_start))
+            .one(&self.db)
+            .await?;
+
+        let Some(plan) = plan else {
+            return Ok(None);
+        };
+
+        // Load slots
+        let slots = meal_plan_slot::Entity::find()
+            .filter(meal_plan_slot::Column::MealPlanId.eq(plan.id))
+            .all(&self.db)
+            .await?;
+
+        // Load recipe details in bulk
+        let recipe_ids: Vec<i64> = slots.iter().map(|s| s.recipe_id).collect();
+        let recipes: HashMap<i64, recipe::Model> = recipe::Entity::find()
+            .filter(recipe::Column::Id.is_in(recipe_ids))
+            .all(&self.db)
+            .await?
+            .into_iter()
+            .map(|r| (r.id, r))
+            .collect();
+
+        let slot_json: Vec<serde_json::Value> = slots
+            .into_iter()
+            .map(|s| {
+                let r = recipes.get(&s.recipe_id);
+                serde_json::json!({
+                    "id": s.id,
+                    "day_of_week": s.day_of_week,
+                    "meal_type": s.meal_type,
+                    "is_completed": s.is_completed,
+                    "servings": s.servings_override,
+                    "recipe": r.map(|r| serde_json::json!({
+                        "id": r.id,
+                        "name": r.name,
+                        "cuisine": r.cuisine,
+                        "category": r.category,
+                        "total_time_min": r.total_time_min,
+                        "difficulty": r.difficulty,
+                        "average_rating": r.average_rating,
+                    }))
+                })
+            })
+            .collect();
+
+        Ok(Some(serde_json::json!({
+            "id": plan.id,
+            "week_start": plan.week_start,
+            "is_ai_generated": plan.is_ai_generated,
+            "slots": slot_json
+        })))
+    }
+
+    /// Generate shopping list: ingredients needed for this week's meal plan minus what's already in inventory
+    pub async fn get_shopping_list(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        use crate::entity::{ingredient, recipe_ingredient};
+
+        let today = Utc::now().date_naive();
+        let days_since_monday = today.weekday().num_days_from_monday() as i64;
+        let week_start = today - chrono::Duration::days(days_since_monday);
+
+        let plan = meal_plan::Entity::find()
+            .filter(meal_plan::Column::UserId.eq(user_id))
+            .filter(meal_plan::Column::WeekStart.eq(week_start))
+            .one(&self.db)
+            .await?;
+
+        let Some(plan) = plan else {
+            return Ok(vec![]);
+        };
+
+        // Get all recipe IDs in this plan
+        let slots = meal_plan_slot::Entity::find()
+            .filter(meal_plan_slot::Column::MealPlanId.eq(plan.id))
+            .filter(meal_plan_slot::Column::IsCompleted.eq(false))
+            .all(&self.db)
+            .await?;
+
+        let recipe_ids: Vec<i64> = slots.iter().map(|s| s.recipe_id).collect();
+
+        // Load all required ingredients
+        let required_ingredients = recipe_ingredient::Entity::find()
+            .filter(recipe_ingredient::Column::RecipeId.is_in(recipe_ids))
+            .all(&self.db)
+            .await?;
+
+        // Aggregate required quantities per ingredient
+        let mut needed: HashMap<i64, rust_decimal::Decimal> = HashMap::new();
+        for ri in &required_ingredients {
+            if let Some(qty) = ri.quantity_grams {
+                *needed.entry(ri.ingredient_id).or_default() += qty;
+            }
+        }
+
+        // Load what user already has in inventory
+        let inventory: HashMap<i64, rust_decimal::Decimal> =
+            inventory_item::Entity::find()
+                .filter(inventory_item::Column::UserId.eq(user_id))
+                .all(&self.db)
+                .await?
+                .into_iter()
+                .map(|i| (i.ingredient_id, i.quantity))
+                .collect();
+
+        // Ingredient names
+        let ingredient_ids: Vec<i64> = needed.keys().cloned().collect();
+        let names: HashMap<i64, String> = ingredient::Entity::find()
+            .filter(ingredient::Column::Id.is_in(ingredient_ids))
+            .all(&self.db)
+            .await?
+            .into_iter()
+            .map(|i| (i.id, i.name))
+            .collect();
+
+        // Build shopping list: only items where needed > have
+        let mut list = Vec::new();
+        for (ingredient_id, needed_qty) in &needed {
+            let have = inventory.get(ingredient_id).cloned().unwrap_or_default();
+            if *needed_qty > have {
+                let to_buy = needed_qty - have;
+                list.push(serde_json::json!({
+                    "ingredient_id": ingredient_id,
+                    "name": names.get(ingredient_id).cloned().unwrap_or_default(),
+                    "needed_grams": needed_qty,
+                    "have_grams": have,
+                    "to_buy_grams": to_buy,
+                    "in_inventory": have > rust_decimal::Decimal::ZERO,
+                }));
+            }
+        }
+
+        // Sort by name
+        list.sort_by(|a, b| {
+            a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or(""))
+        });
+
+        Ok(list)
+    }
+
+    /// Mark a meal plan slot as completed
+    pub async fn mark_slot_complete(
+        &self,
+        user_id: Uuid,
+        plan_id: i64,
+        slot_id: i64,
+    ) -> Result<(), AppError> {
+        // Verify the plan belongs to the user
+        meal_plan::Entity::find_by_id(plan_id)
+            .one(&self.db)
+            .await?
+            .filter(|p| p.user_id == user_id)
+            .ok_or(AppError::NotFound("Meal plan".into()))?;
+
+        let slot = meal_plan_slot::Entity::find_by_id(slot_id)
+            .one(&self.db)
+            .await?
+            .ok_or(AppError::NotFound("Slot".into()))?;
+
+        let mut active: meal_plan_slot::ActiveModel = slot.into();
+        active.is_completed = Set(true);
+        active.update(&self.db).await?;
+
+        Ok(())
+    }
 }

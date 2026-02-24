@@ -228,4 +228,45 @@ impl InteractionService {
 
         Ok(())
     }
+
+    /// Get all recipes the user has favourited
+    pub async fn get_favourites(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        let favourites = user_favorite::Entity::find()
+            .filter(user_favorite::Column::UserId.eq(user_id))
+            .all(&self.db)
+            .await?;
+
+        let recipe_ids: Vec<i64> = favourites.iter().map(|f| f.recipe_id).collect();
+
+        let recipes = recipe::Entity::find()
+            .filter(recipe::Column::Id.is_in(recipe_ids))
+            .all(&self.db)
+            .await?;
+
+        let result = favourites
+            .into_iter()
+            .zip(recipes.into_iter())
+            .map(|(fav, r)| {
+                serde_json::json!({
+                    "favourite_id": fav.id,
+                    "saved_at": fav.saved_at.to_rfc3339(),
+                    "recipe": {
+                        "id": r.id,
+                        "name": r.name,
+                        "cuisine": r.cuisine,
+                        "category": r.category,
+                        "total_time_min": r.total_time_min,
+                        "difficulty": r.difficulty,
+                        "average_rating": r.average_rating,
+                        "rating_count": r.rating_count,
+                    }
+                })
+            })
+            .collect();
+
+        Ok(result)
+    }
 }
