@@ -21,11 +21,6 @@ final chatSessionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) as
 class ChatListPage extends ConsumerWidget {
   const ChatListPage({super.key});
 
-  Future<void> _newChat(BuildContext context, WidgetRef ref) async {
-    // Start a new session by going directly to the chat page with id=0 (new)
-    context.push('/chat/new');
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(chatSessionsProvider);
@@ -80,8 +75,8 @@ class ChatListPage extends ConsumerWidget {
                   return ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: sessions.length,
-                    separatorBuilder: (_, __) => const Divider(color: AppTheme.border, height: 1),
-                    itemBuilder: (_, i) => _SessionTile(
+                    separatorBuilder: (context, index) => const Divider(color: AppTheme.border, height: 1),
+                    itemBuilder: (context, i) => _SessionTile(
                       session: sessions[i],
                       onTap: () => context.push('/chat/${sessions[i]['id']}'),
                       onDelete: () async {

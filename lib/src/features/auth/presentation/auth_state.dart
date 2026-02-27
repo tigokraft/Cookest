@@ -15,7 +15,7 @@ class AuthLoading extends AuthState {
 }
 
 class AuthSuccess extends AuthState {
-  final Map<String, dynamic> data; // Token pair
+  final AuthTokens data; // Token pair
   const AuthSuccess(this.data);
 }
 

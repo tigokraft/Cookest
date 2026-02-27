@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/api/api_client.dart';
-import '../../../features/auth/data/auth_repository.dart';
+import '../../../features/auth/presentation/auth_state.dart';
 import '../../../shared/theme/shadcn_theme.dart';
 import '../../../shared/components/shadcn_button.dart';
 import '../../../shared/components/shadcn_input.dart';
@@ -145,7 +145,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         fullWidth: true,
                         icon: const Icon(LucideIcons.logOut, size: 16),
                         onPressed: () async {
-                          await ref.read(authNotifierProvider.notifier).logout();
+                          ref.read(authControllerProvider.notifier).reset();
                           if (context.mounted) context.go('/login');
                         },
                       ).animate().fadeIn(delay: 300.ms),

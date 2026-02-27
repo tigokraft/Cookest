@@ -67,7 +67,7 @@ class _RecipeDetailBody extends StatelessWidget {
           flexibleSpace: FlexibleSpaceBar(
             background: recipe['image_url'] != null
                 ? Image.network(recipe['image_url'], fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: AppTheme.muted, child: const Icon(LucideIcons.chefHat, size: 60, color: AppTheme.mutedForeground)))
+                    errorBuilder: (context, error, stackTrace) => Container(color: AppTheme.muted, child: const Icon(LucideIcons.chefHat, size: 60, color: AppTheme.mutedForeground)))
                 : Container(color: AppTheme.muted, child: const Icon(LucideIcons.chefHat, size: 60, color: AppTheme.mutedForeground)),
           ),
         ),

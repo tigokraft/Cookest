@@ -35,8 +35,6 @@ class _RecipesPageState extends ConsumerState<RecipesPage> {
   String? _cuisineFilter;
 
   final _cuisines = ['All', 'Italian', 'Asian', 'Mexican', 'Indian', 'American', 'Mediterranean'];
-  final _difficulties = ['All', 'Easy', 'Medium', 'Hard'];
-  String _difficulty = 'All';
 
   @override
   void dispose() {
@@ -77,8 +75,8 @@ class _RecipesPageState extends ConsumerState<RecipesPage> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _cuisines.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) {
+                      separatorBuilder: (context, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) {
                         final c = _cuisines[i];
                         final selected = (i == 0 && _cuisineFilter == null) || _cuisineFilter == c;
                         return _FilterChip(
@@ -105,8 +103,8 @@ class _RecipesPageState extends ConsumerState<RecipesPage> {
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                     itemCount: recipes.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => RecipeCard(
+                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) => RecipeCard(
                       recipe: recipes[i],
                       onTap: () => context.push('/recipes/${recipes[i]['id']}'),
                     ).animate().fadeIn(delay: (i * 50).ms),
@@ -150,7 +148,7 @@ class RecipeCard extends StatelessWidget {
                   height: 160,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _ImagePlaceholder(height: 160),
+                  errorBuilder: (context, error, stackTrace) => _ImagePlaceholder(height: 160),
                 ),
               )
             else

@@ -129,7 +129,7 @@ class _MealPlanPageState extends ConsumerState<MealPlanPage> with SingleTickerPr
                   ),
 
                   // ── Shopping list ──────────────────────────────────────────
-                  Consumer(builder: (_, ref, __) {
+                  Consumer(builder: (context, ref, child) {
                     final listAsync = ref.watch(shoppingListProvider);
                     return listAsync.when(
                       loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary)),
@@ -139,8 +139,8 @@ class _MealPlanPageState extends ConsumerState<MealPlanPage> with SingleTickerPr
                           : ListView.separated(
                               padding: const EdgeInsets.all(20),
                               itemCount: items.length,
-                              separatorBuilder: (_, __) => const Divider(color: AppTheme.border, height: 1),
-                              itemBuilder: (_, i) => _ShoppingItem(item: items[i]),
+                              separatorBuilder: (context, index) => const Divider(color: AppTheme.border, height: 1),
+                              itemBuilder: (context, i) => _ShoppingItem(item: items[i]),
                             ),
                     );
                   }),
@@ -169,8 +169,8 @@ class _WeekGrid extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(20),
       itemCount: 7,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, dayIndex) {
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, dayIndex) {
         final daySlots = slots.where((s) => s['day_of_week'] == dayIndex).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,7 +207,7 @@ class _SlotCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDone ? AppTheme.muted : AppTheme.background,
-        border: Border.all(color: isDone ? AppTheme.border : AppTheme.primary.withOpacity(0.3)),
+        border: Border.all(color: isDone ? AppTheme.border : AppTheme.primary.withValues(alpha: 0.3)),
         borderRadius: BorderRadius.circular(AppTheme.radius),
       ),
       child: Row(children: [

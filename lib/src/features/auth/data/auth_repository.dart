@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
-import '../../../core/errors/app_error.dart';
 import '../../../core/storage/secure_storage.dart';
 
 final authRepositoryProvider = Provider(
@@ -77,48 +76,5 @@ class AuthError extends AuthState {
 
 // ── Auth notifier ─────────────────────────────────────────────────────────────
 
-final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(ref.read(authRepositoryProvider)),
-);
-
-class AuthNotifier extends StateNotifier<AuthState> {
-  final AuthRepository _repo;
-
-  AuthNotifier(this._repo) : super(AuthInitial()) {
-    _checkSession();
-  }
-
-  Future<void> _checkSession() async {
-    final valid = await _repo.hasValidSession();
-    state = valid ? AuthAuthenticated() : AuthUnauthenticated();
-  }
-
-  Future<void> login(String email, String password) async {
-    state = AuthLoading();
-    try {
-      await _repo.login(email, password);
-      state = AuthAuthenticated();
-    } on AppError catch (e) {
-      state = AuthError(e.message);
-    } catch (_) {
-      state = AuthError('Network error. Is the server running?');
-    }
-  }
-
-  Future<void> register(String email, String password) async {
-    state = AuthLoading();
-    try {
-      await _repo.register(email, password);
-      state = AuthAuthenticated();
-    } on AppError catch (e) {
-      state = AuthError(e.message);
-    } catch (_) {
-      state = AuthError('Network error. Is the server running?');
-    }
-  }
-
-  Future<void> logout() async {
-    await _repo.logout();
-    state = AuthUnauthenticated();
-  }
-}
+// Riverpod 2.0 Notifier is defined in auth_state.dart now, using that instead.
+// Exposing authRepositoryProvider only.

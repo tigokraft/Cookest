@@ -7,7 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../shared/components/shadcn_button.dart';
 import '../../../shared/components/shadcn_input.dart';
 import '../../../shared/theme/shadcn_theme.dart';
-import '../data/auth_repository.dart';
+import 'auth_state.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -34,19 +34,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
       if (_isRegistering) {
-        ref.read(authNotifierProvider.notifier).register(email, password);
+        ref.read(authControllerProvider.notifier).register(email, password);
       } else {
-        ref.read(authNotifierProvider.notifier).login(email, password);
+        ref.read(authControllerProvider.notifier).login(email, password);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authNotifierProvider);
+    final authState = ref.watch(authControllerProvider);
 
-    ref.listen(authNotifierProvider, (_, next) {
-      if (next is AuthAuthenticated) {
+    ref.listen(authControllerProvider, (previous, next) {
+      if (next is AuthSuccess) {
         context.go('/');
       } else if (next is AuthError) {
         ScaffoldMessenger.of(context).showSnackBar(

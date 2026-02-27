@@ -134,7 +134,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.all(16),
                     itemCount: _messages.length + (_loading ? 1 : 0),
-                    itemBuilder: (_, i) {
+                    itemBuilder: (context, i) {
                       if (i == _messages.length) return _TypingIndicator();
                       return _ChatBubble(msg: _messages[i])
                           .animate().fadeIn(delay: 50.ms).slideY(begin: 0.05);
@@ -180,7 +180,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     color: _loading ? AppTheme.muted : AppTheme.primary,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(_loading ? LucideIcons.loader : LucideIcons.sendHorizonal, size: 18, color: _loading ? AppTheme.mutedForeground : Colors.white),
+                  child: Icon(_loading ? LucideIcons.loader : LucideIcons.send, size: 18, color: _loading ? AppTheme.mutedForeground : Colors.white),
                 ),
               ),
             ]),
@@ -274,14 +274,14 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
         decoration: BoxDecoration(color: AppTheme.muted, borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16), bottomRight: Radius.circular(16), bottomLeft: Radius.circular(4))),
         child: AnimatedBuilder(
           animation: _ctrl,
-          builder: (_, __) => Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) {
+          builder: (context, child) => Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) {
             final t = (_ctrl.value - i * 0.15).clamp(0.0, 1.0);
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Container(
                 width: 6, height: 6,
                 decoration: BoxDecoration(
-                  color: AppTheme.mutedForeground.withOpacity(0.5 + 0.5 * (t < 0.5 ? t * 2 : 2 - t * 2)),
+                  color: AppTheme.mutedForeground.withValues(alpha: 0.5 + 0.5 * (t < 0.5 ? t * 2 : 2 - t * 2)),
                   shape: BoxShape.circle,
                 ),
               ),

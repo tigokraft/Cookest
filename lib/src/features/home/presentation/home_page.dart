@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../shared/theme/shadcn_theme.dart';
-import '../../../features/auth/data/auth_repository.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -73,8 +72,8 @@ class HomePage extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   scrollDirection: Axis.horizontal,
                   itemCount: 2,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (_, i) => _MealCard(
+                  separatorBuilder: (context, index) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) => _MealCard(
                     mealType: i == 0 ? 'Lunch' : 'Dinner',
                     recipeName: i == 0 ? 'Generate your plan' : 'to get meal ideas',
                     isEmpty: true,
