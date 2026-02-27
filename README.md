@@ -1,106 +1,55 @@
-# Secure Authentication API
+# Cookest - Personal AI Cooking Assistant
 
-A production-ready, highly secure authentication API built with Rust, Actix-web, and SeaORM.
+Cookest is a full-stack personal AI cooking assistant application. It helps users plan meals, discover recipes, manage kitchen inventory, and make healthy food choices with the help of an AI chat assistant.
 
-## Security Features
+## Architecture
 
-| Feature | Implementation |
-|---------|----------------|
-| Password Hashing | **Argon2id** with OWASP-recommended parameters (19 MiB memory, 2 iterations) |
-| Token Auth | **JWT** with short-lived access tokens (15 min) + refresh token rotation |
-| Refresh Tokens | **HttpOnly cookies** with Secure, SameSite=Strict flags |
-| Rate Limiting | Per-endpoint throttling (10 req/min for auth routes) |
-| Account Lockout | Locks after 5 failed attempts for 15 minutes |
-| Input Validation | Email format, password strength (uppercase, lowercase, digit, special char) |
-| Error Handling | Generic messages to prevent enumeration attacks |
+The project is split into two main directories:
 
-## API Endpoints
+1.  **`api/` (Backend)**:
+    *   **Language & Framework**: Rust with Actix-Web.
+    *   **Database**: PostgreSQL managed via SeaORM and raw SQLX migrations.
+    *   **Authentication**: Argon2id password hashing, JWT access tokens, and HttpOnly refresh token rotation.
+    *   **AI Integration**: Connects to a local Ollama instance (e.g., `llama3.2`) to provide context-aware AI chat capabilities based on a user's inventory, allergies, and meal plans.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/auth/register` | POST | Create new user account |
-| `/api/auth/login` | POST | Authenticate and get tokens |
-| `/api/auth/refresh` | POST | Refresh access token (uses cookie) |
-| `/api/auth/logout` | POST | Invalidate refresh token |
-| `/health` | GET | Health check |
+2.  **`UI/` (Frontend)**:
+    *   **Framework**: Flutter.
+    *   **Target Platforms**: Cross-platform (currently tested on Web/Chrome and macOS Native).
+    *   **Features**: User authentication, recipe browsing, meal planning, and an AI chat interface.
 
-## Quick Start
+## Branches & Workflows
 
-### 1. Prerequisites
+*(Assuming standard Git Flow based on context)*
 
-- Rust 1.70+
-- PostgreSQL 13+
+*   **`main`**: The primary branch containing the stable, production-ready code.
+*   **Feature Branches**: For developing new features (the UI and API improvements).
 
-### 2. Setup Database
+## Running the Project Locally
 
+### 1. Database & AI Services
+Ensure you have Docker and Docker Compose installed.
 ```bash
-# Create database
-createdb auth_db
+cd api
+docker-compose up -d
 ```
+This starts the `auth_db` PostgreSQL container.
 
-### 3. Configure Environment
+*(Optional)* Start your local Ollama instance if you want to use the AI chat features.
 
+### 2. Backend API
 ```bash
-cp .env.example .env
-# Edit .env with your database credentials and a secure JWT secret
-# Generate JWT secret: openssl rand -base64 64
+cd api
+# Ensure your .env file is properly configured with your DATABASE_URL
+cargo run --release
 ```
+The API will run on `http://127.0.0.1:3000`. It will automatically run database migrations on startup.
 
-### 4. Run
-
+### 3. Frontend UI
 ```bash
-cargo run
+cd UI
+# To run on Chrome (Fastest for UI development and avoids Apple CodeSign issues)
+flutter run -d chrome
+
+# To run on macOS natively (Requires valid code signing / xattr clearing)
+flutter run -d macos
 ```
-
-## Usage Examples
-
-### Register
-
-```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
-```
-
-### Login
-
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -c cookies.txt \
-  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
-```
-
-### Refresh Token
-
-```bash
-curl -X POST http://localhost:8080/api/auth/refresh \
-  -b cookies.txt \
-  -c cookies.txt
-```
-
-## Project Structure
-
-```
-src/
-├── main.rs           # Server entry point
-├── config.rs         # Environment configuration
-├── db.rs             # Database connection
-├── errors.rs         # Error types
-├── entity/           # SeaORM entities
-│   └── user.rs
-├── handlers/         # HTTP handlers
-│   └── auth.rs
-├── middleware/       # Actix middleware
-│   ├── auth.rs       # JWT validation
-│   └── rate_limit.rs
-├── services/         # Business logic
-│   ├── auth.rs       # Authentication
-│   └── token.rs      # JWT management
-└── validation/       # Input validation
-    └── auth.rs
-```
-
-## License
-
-MIT
