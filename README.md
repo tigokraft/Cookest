@@ -1,55 +1,99 @@
-# Cookest - Personal AI Cooking Assistant
+# Cookest
 
-Cookest is a full-stack personal AI cooking assistant application. It helps users plan meals, discover recipes, manage kitchen inventory, and make healthy food choices with the help of an AI chat assistant.
+Cookest is an AI-assisted meal and kitchen management platform. This repository currently contains the **Rust backend API** that powers authentication, recipes, inventory tracking, meal planning, and AI chat workflows.
 
-## Architecture
+> Looking for the frontend? See the **UI branch note** in [UI Branch Overview](#ui-branch-overview).
 
-The project is split into two main directories:
+🇵🇹 Portuguese (Portugal) version: [README.pt-PT.md](README.pt-PT.md).
 
-1.  **`api/` (Backend)**:
-    *   **Language & Framework**: Rust with Actix-Web.
-    *   **Database**: PostgreSQL managed via SeaORM and raw SQLX migrations.
-    *   **Authentication**: Argon2id password hashing, JWT access tokens, and HttpOnly refresh token rotation.
-    *   **AI Integration**: Connects to a local Ollama instance (e.g., `llama3.2`) to provide context-aware AI chat capabilities based on a user's inventory, allergies, and meal plans.
+## What the app does
 
-2.  **`UI/` (Frontend)**:
-    *   **Framework**: Flutter.
-    *   **Target Platforms**: Cross-platform (currently tested on Web/Chrome and macOS Native).
-    *   **Features**: User authentication, recipe browsing, meal planning, and an AI chat interface.
+Cookest combines structured food data and user context to support everyday cooking decisions:
 
-## Branches & Workflows
+- Account creation and secure sign-in.
+- Recipe search and recipe detail retrieval.
+- Ingredient search + nutrition metadata.
+- Personal inventory management (including expiring-soon items).
+- User profile preferences (household size, dietary restrictions, allergies).
+- Meal plan generation and shopping list generation.
+- Recipe interactions (ratings, favourites, “cooked” history).
+- AI chat sessions that can use user context (inventory/preferences/history) to answer cooking questions.
 
-*(Assuming standard Git Flow based on context)*
+## Tech stack
 
-*   **`main`**: The primary branch containing the stable, production-ready code.
-*   **Feature Branches**: For developing new features (the UI and API improvements).
+### Backend (this branch)
 
-## Running the Project Locally
+- **Language/Framework:** Rust + Actix Web
+- **ORM/DB access:** SeaORM
+- **Database:** PostgreSQL
+- **Auth:** Argon2id password hashing + JWT access/refresh flow
+- **Security middleware:** rate limiting, JWT auth middleware, CORS, secure cookie usage
+- **AI integration:** Ollama-compatible local model endpoint
 
-### 1. Database & AI Services
-Ensure you have Docker and Docker Compose installed.
+## API surface (high-level)
+
+Cookest exposes REST-style endpoints under `/api/*`:
+
+- `/api/auth/*` — register/login/refresh/logout
+- `/api/recipes/*` — list recipes + fetch by id/slug
+- `/api/ingredients/*` — search ingredients + fetch ingredient details
+- `/api/inventory/*` — CRUD inventory and expiring items
+- `/api/me/*` — profile, history, favourites
+- `/api/meal-plans/*` — generate/current plan/shopping list/mark complete
+- `/api/chat/*` — AI chat sessions and messages
+
+For detailed setup and endpoint-oriented guidance, see [`docs/BUILD_AND_USAGE.md`](docs/BUILD_AND_USAGE.md).
+
+## UI Branch Overview
+
+The repository is organized around a stable **main/backend track**, and a separate **UI branch track** for Flutter client work.
+
+- **Main branch focus:** backend API + schema + service logic.
+- **UI branch focus:** Flutter application integrating with this API.
+
+Recommended team workflow:
+
+1. Keep API contracts stable in `main`.
+2. Develop/polish user-facing screens in the UI branch.
+3. Validate integration by pointing the UI branch at a running local API instance.
+4. Merge UI updates after endpoint and environment compatibility checks.
+
+If your local checkout only contains backend files, that is expected for this branch.
+
+## Quick start
+
+### 1) Start PostgreSQL
+
 ```bash
-cd api
 docker-compose up -d
 ```
-This starts the `auth_db` PostgreSQL container.
 
-*(Optional)* Start your local Ollama instance if you want to use the AI chat features.
+### 2) Configure environment
 
-### 2. Backend API
+Copy and edit:
+
 ```bash
-cd api
-# Ensure your .env file is properly configured with your DATABASE_URL
-cargo run --release
+cp .env.example .env
 ```
-The API will run on `http://127.0.0.1:3000`. It will automatically run database migrations on startup.
 
-### 3. Frontend UI
+Then ensure values are valid for your local Postgres and JWT setup.
+
+### 3) Run the API
+
 ```bash
-cd UI
-# To run on Chrome (Fastest for UI development and avoids Apple CodeSign issues)
-flutter run -d chrome
-
-# To run on macOS natively (Requires valid code signing / xattr clearing)
-flutter run -d macos
+cargo run
 ```
+
+Default bind is `127.0.0.1:8080` unless overridden by environment variables.
+
+## Documentation index
+
+- Build, run, and operational docs: [`docs/BUILD_AND_USAGE.md`](docs/BUILD_AND_USAGE.md)
+- Database schema + ER diagram: [`docs/database/SCHEMA.md`](docs/database/SCHEMA.md)
+- Legacy schema notes: [`DB_SCHEMA.md`](DB_SCHEMA.md)
+
+## Current scope notes
+
+- This branch is API-centric.
+- Migrations are applied at startup from SQL statements in `src/main.rs`.
+- Ollama is optional; required only for AI chat endpoints.
