@@ -30,12 +30,8 @@ impl ProfileService {
             email: user.email,
             name: user.name,
             household_size: user.household_size,
-            dietary_restrictions: user
-                .dietary_restrictions
-                .and_then(|j| serde_json::from_value(j).ok()),
-            allergies: user
-                .allergies
-                .and_then(|j| serde_json::from_value(j).ok()),
+            dietary_restrictions: user.dietary_restrictions,
+            allergies: user.allergies,
             avatar_url: user.avatar_url,
             is_email_verified: user.is_email_verified,
             two_factor_enabled: user.two_factor_enabled,
@@ -64,10 +60,10 @@ impl ProfileService {
             active.household_size = Set(size);
         }
         if let Some(restrictions) = req.dietary_restrictions {
-            active.dietary_restrictions = Set(Some(json!(restrictions)));
+            active.dietary_restrictions = Set(Some(restrictions));
         }
         if let Some(allergies) = req.allergies {
-            active.allergies = Set(Some(json!(allergies)));
+            active.allergies = Set(Some(allergies));
         }
         if let Some(avatar) = req.avatar_url {
             active.avatar_url = Set(Some(avatar));
@@ -81,12 +77,8 @@ impl ProfileService {
             email: saved.email,
             name: saved.name,
             household_size: saved.household_size,
-            dietary_restrictions: saved
-                .dietary_restrictions
-                .and_then(|j| serde_json::from_value(j).ok()),
-            allergies: saved
-                .allergies
-                .and_then(|j| serde_json::from_value(j).ok()),
+            dietary_restrictions: saved.dietary_restrictions,
+            allergies: saved.allergies,
             avatar_url: saved.avatar_url,
             is_email_verified: saved.is_email_verified,
             two_factor_enabled: saved.two_factor_enabled,

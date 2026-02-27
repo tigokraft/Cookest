@@ -325,18 +325,14 @@ impl ChatService {
 
         // User profile (dietary restrictions, allergies)
         if let Some(user) = user::Entity::find_by_id(user_id).one(&self.db).await? {
-            if let Some(restrictions) = user.dietary_restrictions {
-                if let Ok(list) = serde_json::from_value::<Vec<String>>(restrictions) {
-                    if !list.is_empty() {
-                        ctx.push_str(&format!("User dietary restrictions: {}.\n", list.join(", ")));
-                    }
+            if let Some(list) = user.dietary_restrictions {
+                if !list.is_empty() {
+                    ctx.push_str(&format!("User dietary restrictions: {}.\n", list.join(", ")));
                 }
             }
-            if let Some(allergies) = user.allergies {
-                if let Ok(list) = serde_json::from_value::<Vec<String>>(allergies) {
-                    if !list.is_empty() {
-                        ctx.push_str(&format!("User allergies (NEVER suggest these): {}.\n", list.join(", ")));
-                    }
+            if let Some(list) = user.allergies {
+                if !list.is_empty() {
+                    ctx.push_str(&format!("User allergies (NEVER suggest these): {}.\n", list.join(", ")));
                 }
             }
             ctx.push_str(&format!("Household size: {} people.\n", user.household_size));

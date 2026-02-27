@@ -29,13 +29,13 @@ pub struct Model {
     /// Number of people in the household — used for auto-scaling recipe portions
     pub household_size: i32,
 
-    /// Dietary restrictions stored as JSON array: e.g. ["vegetarian", "gluten_free"]
-    #[sea_orm(column_type = "JsonBinary", nullable)]
-    pub dietary_restrictions: Option<Json>,
+    /// Dietary restrictions stored as an array of strings: e.g. ["vegetarian", "gluten_free"]
+    #[sea_orm(column_type = "Array(String)", nullable)]
+    pub dietary_restrictions: Option<Vec<String>>,
 
-    /// Food allergies stored as JSON array: e.g. ["nuts", "shellfish"]
-    #[sea_orm(column_type = "JsonBinary", nullable)]
-    pub allergies: Option<Json>,
+    /// Food allergies stored as an array of strings: e.g. ["nuts", "shellfish"]
+    #[sea_orm(column_type = "Array(String)", nullable)]
+    pub allergies: Option<Vec<String>>,
 
     /// URL to profile avatar stored in S3
     #[sea_orm(column_type = "Text", nullable)]
@@ -127,8 +127,8 @@ pub struct UserResponse {
     pub email: String,
     pub name: Option<String>,
     pub household_size: i32,
-    pub dietary_restrictions: Option<Json>,
-    pub allergies: Option<Json>,
+    pub dietary_restrictions: Option<Vec<String>>,
+    pub allergies: Option<Vec<String>>,
     pub avatar_url: Option<String>,
     pub is_email_verified: bool,
     pub two_factor_enabled: bool,
