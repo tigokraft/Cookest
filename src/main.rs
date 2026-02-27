@@ -389,12 +389,18 @@ async fn main() -> std::io::Result<()> {
     ];
 
     for sql in migrations {
-        db.execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            sql.to_string(),
-        ))
-        .await
-        .expect("Failed to run migration");
+        for statement in sql.split(';') {
+            let stmt = statement.trim();
+            if stmt.is_empty() {
+                continue;
+            }
+            db.execute(Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                stmt.to_string(),
+            ))
+            .await
+            .expect("Failed to run migration");
+        }
     }
 
     tracing::info!("All {} migrations complete", migrations.len());
