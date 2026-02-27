@@ -10,6 +10,8 @@ class ShadcnInput extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
+  final Widget? prefix;
+  final int? maxLines;
 
   const ShadcnInput({
     super.key,
@@ -20,6 +22,8 @@ class ShadcnInput extends StatelessWidget {
     this.keyboardType,
     this.validator,
     this.onChanged,
+    this.prefix,
+    this.maxLines = 1,
   });
 
   @override
@@ -43,11 +47,16 @@ class ShadcnInput extends StatelessWidget {
           keyboardType: keyboardType,
           validator: validator,
           onChanged: onChanged,
+          maxLines: obscureText ? 1 : maxLines,
           style: const TextStyle(fontSize: 14),
           cursorColor: AppTheme.primary,
           decoration: InputDecoration(
             hintText: placeholder,
             isDense: true,
+            prefixIcon: prefix,
+            prefixIconConstraints: prefix != null
+                ? const BoxConstraints(minWidth: 40, minHeight: 40)
+                : null,
           ),
         ),
       ],
