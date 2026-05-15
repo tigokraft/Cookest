@@ -8,6 +8,7 @@ pub mod shopping_list;
 pub mod subscription;
 pub mod store;
 pub mod browse;
+pub mod image_gen;
 
 pub use auth::configure as configure_auth;
 pub use recipe::configure as configure_recipes;
@@ -22,3 +23,5 @@ pub use subscription::configure_subscription_protected;
 pub use store::configure_stores;
 pub use browse::configure_browse;
 pub use browse::FoodApiClient;
+pub use image_gen::configure_image_gen;
+pub use image_gen::ImageGenClient;
