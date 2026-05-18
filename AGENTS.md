@@ -65,3 +65,41 @@ Scopes: `auth`, `recipe`, `meal-plan`, `chat`, `store`, `subscription`, `middlew
 ## MCP Server
 
 For programmatic documentation access, use the MCP server at `../docs/mcp/`.
+
+---
+
+## Session Protocols
+
+### Startup (every session — non-negotiable)
+
+1. `vault_read("Agents/context.md")` — live project memory
+2. `vault_read("Errors/error-log.md")` — past mistakes to avoid repeating
+3. `vault_read("Learnings/learning-log.md")` — past discoveries to reuse
+4. `get_project_context()` — live system snapshot
+5. If working with a Rust library: `query-docs` via Context7 (IDs in `vault/Learnings/library-ids.md`)
+
+### Context7 — Use Before Any Library Code
+
+Do NOT guess library APIs from training data. Fetch the current docs:
+
+```
+query-docs({ libraryId: "/actix/actix-web", query: "your question" })
+query-docs({ libraryId: "/SeaRust/sea-orm", query: "your question" })
+```
+
+Key IDs: Actix-Web `/actix/actix-web` · SeaORM `/SeaRust/sea-orm` · Tokio `/tokio-rs/tokio` · Serde `/serde-rs/serde`
+
+### Shutdown (every session — non-negotiable)
+
+1. `vault_append("Changes/changelog.md", entry)` — **append**, never overwrite
+2. `vault_write("Sessions/YYYY-MM-DD-topic.md", content)` — session log
+3. New routes? Update `API_ROUTES.json` + `agents/api-agent.md`
+4. New pattern or bug fix? `vault_append("Learnings/learning-log.md", ...)` or `vault_append("Errors/error-log.md", ...)`
+5. `vault/Agents/context.md` stale? Rewrite it with `vault_write`
+
+### Coding Reference
+
+- Patterns to follow: `vault/Patterns/code-patterns.md`
+- Best practices: `vault/Patterns/coding-guidelines.md`
+- What NOT to do: `vault/Patterns/anti-patterns.md`
+- Architecture decisions (WHY): `vault/Decisions/architecture-decisions.md`
