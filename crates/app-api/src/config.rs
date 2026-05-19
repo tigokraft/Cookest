@@ -1,7 +1,18 @@
+//! Application configuration contract.
+//!
+//! All runtime settings are read from environment variables (or `.env`).
+//! Required variables cause a hard startup failure so misconfiguration is
+//! caught at launch time rather than at the first request.
+
 use secrecy::{ExposeSecret, SecretString};
 use cookest_shared::config::ConfigError;
 use std::env;
 
+/// Validated, immutable snapshot of every env-var this service needs.
+///
+/// Constructed once at startup via [`Config::from_env`] and then shared as
+/// `Arc<Config>` / `web::Data`.  All secret values are wrapped in
+/// [`SecretString`] so they are never accidentally printed in logs.
 #[derive(Clone)]
 pub struct Config {
     pub database_url: SecretString,
@@ -24,6 +35,21 @@ pub struct Config {
 }
 
 impl Config {
+    /// Load configuration from environment variables.
+    ///
+    /// **Required vars** (missing → `ConfigError::Missing` → startup panic):
+    /// - `APP_DATABASE_URL` or `DATABASE_URL` — PostgreSQL connection string
+    /// - `JWT_SECRET` — HMAC signing key; must be ≥ 32 chars (256 bits)
+    ///
+    /// **Optional vars** (sensible defaults in parentheses):
+    /// - `JWT_ACCESS_EXPIRY_SECONDS` (900 = 15 min)
+    /// - `JWT_REFRESH_EXPIRY_SECONDS` (604800 = 7 days)
+    /// - `HOST` (127.0.0.1), `PORT` (8080)
+    /// - `CORS_ORIGIN`, `OLLAMA_URL`, `OLLAMA_MODEL`
+    /// - `PDF_UPLOAD_DIR`, `FOOD_API_URL`, `FOOD_API_KEY`
+    /// - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
+    /// - `IMAGE_GEN_URL`, `IMAGE_GEN_TOKEN`
+    /// - `STRIPE_WEBHOOK_SECRET`
     pub fn from_env() -> Result<Self, ConfigError> {
         dotenvy::dotenv().ok();
 
@@ -110,10 +136,18 @@ impl Config {
         })
     }
 
+    /// Expose the database URL as a plain `&str` for SeaORM connection setup.
+    ///
+    /// The value is kept behind [`SecretString`] at rest; only call this where
+    /// strictly necessary (i.e. when building the DB pool).
     pub fn database_url(&self) -> &str {
         self.database_url.expose_secret()
     }
 
+    /// Expose the JWT HMAC secret for token signing/verification.
+    ///
+    /// Keep the returned `&str` in scope only for the duration of the
+    /// sign/verify operation — do not clone or log it.
     pub fn jwt_secret(&self) -> &str {
         self.jwt_secret.expose_secret()
     }

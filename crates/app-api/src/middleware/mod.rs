@@ -1,3 +1,4 @@
+//! Actix-Web middleware: JWT auth, rate limiting, and security headers.
 pub mod auth;
 
 pub use auth::JwtAuth;
