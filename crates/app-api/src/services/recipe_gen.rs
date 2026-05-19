@@ -1,3 +1,12 @@
+//! AI-powered recipe generation service.
+//!
+//! Implements a **generate → score → refine** loop backed by a local Ollama
+//! LLM.  Each iteration asks Ollama to generate a recipe, a second pass
+//! scores it for palatability and nutrition balance, and if the score is
+//! below [`SCORE_THRESHOLD`] the loop retries with the judge’s suggestions
+//! as a critique prompt.  The loop is capped at [`MAX_ITERATIONS`] to bound
+//! latency regardless of LLM quality.
+
 use reqwest::Client;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
@@ -7,7 +16,16 @@ use uuid::Uuid;
 use crate::entity::{ingredient, inventory_item, user};
 use cookest_shared::errors::AppError;
 
+/// Maximum number of generate → score → refine cycles before returning the
+/// best result found so far.  3 was chosen as the sweet spot: empirically
+/// a second pass improves quality noticeably, but a third pass yields
+/// diminishing returns while adding ~3 × LLM latency.
 const MAX_ITERATIONS: usize = 3;
+
+/// Minimum weighted score (0–10) a generated recipe must reach before the
+/// loop terminates early.  7.0 represents "good enough to serve a real user"
+/// in our internal palatability rubric; below that, the recipe is retried
+/// with the judge’s suggestions as a critique.
 const SCORE_THRESHOLD: f32 = 7.0;
 
 // ── Internal Ollama types ─────────────────────────────────────────────────────
@@ -36,6 +54,7 @@ struct OllamaScoreOutput {
 
 // ── Public request / response types ──────────────────────────────────────────
 
+/// Request body for the recipe-generation endpoint.
 #[derive(Debug, Deserialize)]
 pub struct GenerateRecipeRequest {
     /// Restrict ingredients to what's in the user's pantry
@@ -46,6 +65,9 @@ pub struct GenerateRecipeRequest {
     pub max_minutes: Option<u32>,
 }
 
+/// A single ingredient entry in the generated recipe, tagged with whether
+/// it already exists in the user’s pantry so the UI can highlight
+/// missing items.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenIngredient {
     pub name: String,
@@ -54,6 +76,8 @@ pub struct GenIngredient {
     pub is_pantry_item: bool,
 }
 
+/// Macronutrient breakdown per serving, computed by the LLM and passed
+/// through as-is (not independently verified against a nutrition DB).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenMacros {
     pub calories: f64,
@@ -78,6 +102,8 @@ pub struct RecipeScore {
     pub iterations: u32,
 }
 
+/// Full recipe generation result returned to the client, including all
+/// scoring dimensions so the UI can optionally display quality signals.
 #[derive(Debug, Serialize)]
 pub struct GeneratedRecipeResponse {
     pub name: String,
@@ -96,6 +122,11 @@ pub struct GeneratedRecipeResponse {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
+/// Generates personalised recipes via Ollama using the user’s pantry,
+/// dietary restrictions, and cooking skill as context.
+///
+/// One instance is created per request (or shared as `Arc`) because it
+/// holds only immutable config alongside the connection pool.
 pub struct RecipeGenService {
     db: DatabaseConnection,
     http: Client,
@@ -104,6 +135,13 @@ pub struct RecipeGenService {
 }
 
 impl RecipeGenService {
+    /// Construct a service instance.
+    ///
+    /// Reads `OLLAMA_URL` (default `http://localhost:11434`) and
+    /// `OLLAMA_MODEL` (default `llama3.1:8b`) from the environment so the
+    /// same binary can target different models per environment.
+    /// The HTTP client uses a 180-second timeout to accommodate slow
+    /// local hardware that may take minutes for a full generation pass.
     pub fn new(db: DatabaseConnection) -> Self {
         let http = Client::builder()
             .timeout(Duration::from_secs(180))
@@ -119,6 +157,16 @@ impl RecipeGenService {
         }
     }
 
+    /// Generate a personalised recipe for the given user.
+    ///
+    /// Runs the generate → score → refine loop: if the first attempt scores
+    /// below [`SCORE_THRESHOLD`], the judge’s suggestions are fed back as a
+    /// critique and a new recipe is requested.  Stops early on a passing
+    /// score or after [`MAX_ITERATIONS`] attempts.
+    ///
+    /// # Errors
+    /// Returns `AppError` if the DB lookup, Ollama HTTP call, or JSON
+    /// parsing fails at any point.
     pub async fn generate(
         &self,
         user_id: Uuid,

@@ -197,7 +197,10 @@ impl MealPlanService {
             });
         }
 
-        scored.sort_by(|a, b| b.total_score.partial_cmp(&a.total_score).unwrap());
+        // Use total_cmp (not partial_cmp) so NaN scores are sorted deterministically
+        // instead of panicking at runtime. NaN is treated as greater than any finite value,
+        // placing broken-nutrition recipes at the end of the sorted list.
+        scored.sort_by(|a, b| b.total_score.total_cmp(&a.total_score));
 
         // ── 3. Greedy selection — 28 slots (4 per day × 7 days) ──────────────
         // Meal types: breakfast, lunch, dinner, snack

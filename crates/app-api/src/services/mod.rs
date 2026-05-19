@@ -1,3 +1,4 @@
+//! Business-logic services; each module owns one domain area.
 pub mod auth;
 pub mod token;
 pub mod recipe;
