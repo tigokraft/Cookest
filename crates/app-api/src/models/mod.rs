@@ -1,3 +1,4 @@
+//! Request/response model types used by handlers and services.
 pub mod user;
 pub mod recipe;
 pub mod ingredient;

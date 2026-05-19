@@ -1,3 +1,4 @@
+//! SeaORM entity modules — one per database table.
 pub mod user;
 
 // Ingredient & nutrition layer

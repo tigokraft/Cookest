@@ -129,7 +129,10 @@ pub struct RecipeNutritionDetail {
     pub per_serving: bool,
 }
 
-/// Paginated response wrapper
+/// Generic paginated response envelope returned by list endpoints.
+///
+/// `total_pages` is pre-computed server-side so clients don’t need to
+/// derive it.  `page` is 1-indexed to match query param conventions.
 #[derive(Debug, Serialize)]
 pub struct PaginatedResponse<T> {
     pub data: Vec<T>,
@@ -189,7 +192,10 @@ pub struct UpdateRecipeRequest {
     pub is_public: Option<bool>,
 }
 
-/// Simple pagination params (used where no recipe-specific filters are needed)
+/// Minimal pagination query params shared by endpoints that don’t need
+/// recipe-specific filters (e.g. user recipe lists, favourites).
+///
+/// Both fields are optional; handlers default to `page = 1`, `per_page = 20`.
 #[derive(Debug, Deserialize)]
 pub struct PaginationQuery {
     pub page: Option<u64>,
