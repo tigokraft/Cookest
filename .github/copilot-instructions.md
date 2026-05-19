@@ -2,14 +2,18 @@ You are working on the **Cookest API** (Rust, Actix-Web 4, SeaORM, PostgreSQL).
 
 ## Mandatory Startup — Run Before Anything Else
 
-Call these MCP tools at the start of every session, in order:
-
+**VS Code (MCP available):** Call in order:
 1. `vault_read("Agents/context.md")` — live project memory
 2. `vault_read("Errors/error-log.md")` — past mistakes to avoid
 3. `vault_read("Learnings/learning-log.md")` — past discoveries
 4. `get_project_context()` — live system snapshot
 
-Do not skip. These 4 calls take seconds and prevent hours of repeated mistakes.
+**CLI (MCP unavailable):** Use `view` tool instead:
+1. `view ../vault/Agents/context.md`
+2. `view ../vault/Errors/error-log.md` (last 30 lines)
+3. `view ../CONTEXT.md`
+
+Do not skip. These reads take seconds and prevent hours of repeated mistakes.
 
 ## Mandatory — Use Context7 Before Writing Library Code
 
@@ -38,20 +42,31 @@ Do not guess library APIs. Training data is outdated. Use Context7 instead.
 
 ## Mandatory Shutdown — Run at End of Every Session
 
-1. `vault_append("Changes/changelog.md", "## [YYYY-MM-DD] ...\nWhat was done and why")` — append only, never overwrite
-2. `vault_write("Sessions/YYYY-MM-DD-topic.md", fullSessionLog)` — session log
-3. If new routes were added: update `API_ROUTES.json` + `agents/api-agent.md`
-4. If a pattern was discovered or a bug was fixed: `vault_append("Learnings/learning-log.md", ...)` or `vault_append("Errors/error-log.md", ...)`
+**VS Code:** Use MCP tools:
+1. `vault_append("Changes/changelog.md", "## [YYYY-MM-DD] ...\nWhat was done and why")`
+2. `vault_write("Sessions/YYYY-MM-DD-topic.md", fullSessionLog)`
+3. `vault_append("Errors/error-log.md", ...)` or `vault_append("Learnings/learning-log.md", ...)`
 
-## If MCP Is Unavailable
+**CLI:** Use bash + edit:
+1. `bash printf "\n## [DATE] TOPIC\n- what\n- why\n" >> ../vault/Changes/changelog.md`
+2. `create ../vault/Sessions/YYYY-MM-DD-topic.md` with session summary
+3. Append to errors/learnings similarly
 
-Read `../CONTEXT.md` (repo root) — it is a static snapshot of the full project, always up to date, requires no tools.
+## CLI Mode
+
+If MCP tools are unavailable (running in the Copilot CLI without MCP):
+
+| VS Code MCP | CLI equivalent |
+|---|---|
+| `vault_read("Agents/context.md")` | `view ../vault/Agents/context.md` |
+| `vault_append("Errors/...", text)` | `bash printf "..." >> ../vault/Errors/error-log.md` |
+| `vault_append("Changes/...", text)` | `bash printf "..." >> ../vault/Changes/changelog.md` |
+| `query-docs({ libraryId, query })` | `web_fetch` to official docs URL |
+| `get_project_context()` | `view ../CONTEXT.md` |
+
+**CLI startup:** `view ../vault/Agents/context.md` then `view ../vault/Errors/error-log.md`
+**CLI shutdown:** append to `../vault/Changes/changelog.md`
 
 ## Mid-Session Re-Anchor
 
-If this conversation has grown long and you feel uncertain about project state, call `vault_read("Agents/context.md")` again immediately before your next action.
-
-## Project Context
-
-@AGENTS.md
-@../CONTEXT.md
+If this conversation has grown long (15+ messages), re-read `vault/Agents/context.md` (via `vault_read` or `view ../vault/Agents/context.md`) before your next action.
